@@ -1,0 +1,88 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,"/>
+    <title>U256 | shell: waiting for a host.</title>
+    <link rel="stylesheet" href="../style.css"/>
+    <script src="../highlight.pack.js"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+</head>
+<body>
+    <header>
+        <div>
+            <a href="../">Home</a>
+        </div>
+        <div>
+            
+            <a href="../feed.xml">rss</a>
+        </div>
+    </header>
+
+<main>
+    <div class="title">
+        <h1>shell: waiting for a host.</h1>
+        <time datetime="2020-08-18">2020-08-18</time>
+    </div>
+<p>A recurring pattern in my workflow has been to reboot a machine and wait for its
+networking to be enabled. One issue here is that the latency until completion falls squarely within
+&quot;too short to do something else, too long to stare at my screen&quot;. Instead, a shell function allows
+chaining a connection event with my desktop notification bus (or, well, you know, <em>anything</em>).
+The full check is for a <code>TCP</code> connection to be possible on a port, as usually access is through <code>SSH</code>.</p>
+<pre><code># Run $@ until it succeeds, but allow SIGINT to cancel.
+_cancellable_until () {(
+    cancel=&quot;false&quot;
+    until &quot;$@&quot; &gt; /dev/null; do :; done &amp;
+    trap 'kill $!; cancel=&quot;true&quot;' INT
+    wait $!
+    trap - INT
+    if [ $cancel = &quot;true&quot; ]; then
+        return 1
+    fi
+)}
+
+# ping $1 until it is up and port ${2:-22} is open.
+waitfor () {
+    port=${2:-22}
+    _cancellable_until ping -W1 -c1 &quot;$1&quot; || return 1
+    echo &quot;Ping ok.&quot;
+    _cancellable_until nc -w 1 -z &quot;$1&quot; &quot;${port}&quot; || return 1
+    echo &quot;Port ${port} is open.&quot;
+}
+
+# Usage:
+$ waitfor srv0 2223 &amp;&amp; notify-send &quot;Host 'srv0' is ready.&quot;
+</code></pre>
+<h2>Implementation</h2>
+<p>At the surface level, the requirements are simple: wide portability and short list
+of dependencies. It should be something easy to copy into limited shells,
+so POSIX is enforced using <a href="https://www.shellcheck.net/">shellcheck</a>.
+It also relies on <a href="https://linux.die.net/man/8/ping">ping</a> and <a href="https://linux.die.net/man/1/nc">netcat</a>
+being available. I preferred netcat to alternatives such as <code>/dev/tcp</code>
+<a href="https://www.gnu.org/software/bash/manual/bash.html">bash extension</a> as perharps surprisingly I found netcat
+more prevalent than bash on those embedded targets. Similarly, <a href="https://linux.die.net/man/1/socat">socat</a> is
+more useful and I might have it already on most hosts, but if socat is available then so is netcat usually.</p>
+<p>The end result is more complex than I would have liked. The much simpler naive version could be written
+as such:</p>
+<pre><code>waitfor () {
+    port=${2:-22}
+    until ping -W1 -c1 &quot;$1&quot;; do :; done
+    echo &quot;Ping ok.&quot;
+    until nc -w 1 -z &quot;$1&quot; &quot;${port}&quot; do :; done
+    echo &quot;Port ${port} is open.&quot;
+}
+</code></pre>
+<p>My issue with it is that interrupting the function does not work well. Usually only the inner
+function (ping or netcat) is interrupted, but not the loop. Thus spamming <code>SIGINT</code> becomes necessary
+to stop the check.</p>
+<p>The solution to this is easier when the inner function is expected to succeed usually in an endless loop.
+In this case the halting condition for the loop is any success of the inner function, while usual failure means
+retrying. Receiving a <code>SIGINT</code> should be considered a specific failure and return a code of <code>128 + SIGINT</code>,
+so 130. Checking the return value of ping however, it does not conform to this spec.</p>
+<p>Instead, the inner function is put in the background and <code>SIGINT</code> is trapped. To avoid unsightly prints related
+to background jobs launch and end, the loop itself is launched within a subshell.</p>
+</main>
+
+</body>
+</html>

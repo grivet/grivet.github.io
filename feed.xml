@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>U256</title>
+    <link>https://www.u256.net</link>
+    <description>Recent content on U256</description>
+    <generator>shweb</generator>
+    <lastBuildDate>ven. 08 janv. 2021 23:56:33 UTC</lastBuildDate>
+
+    <atom:link href="https://www.u256.net/feed.xml" rel="self" type="application/rss+xml" />
+
+    <item>
+        <title>GDB: examine IP addresses in the binary soup.</title>
+        <link>https://www.u256.net/posts/ip-addr-in-gdb.html</link>
+        <pubDate>ven. 11 sept. 2020 00:00:00 UTC</pubDate>
+
+        <guid>https://www.u256.net/posts/ip-addr-in-gdb.html</guid>
+        <description>A small trick to look at binary network objects in GDB.</description>
+    </item>
+    <item>
+        <title>shell: waiting for a host.</title>
+        <link>https://www.u256.net/posts/waitfor.html</link>
+        <pubDate>mar. 18 août 2020 00:00:00 UTC</pubDate>
+
+        <guid>https://www.u256.net/posts/waitfor.html</guid>
+        <description>A shell function to wait for a machine to be ready.</description>
+    </item>
+
+  </channel>
+</rss>

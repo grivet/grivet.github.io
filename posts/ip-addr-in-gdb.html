@@ -1,0 +1,103 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,"/>
+    <title>U256 | GDB: examine IP addresses in the binary soup.</title>
+    <link rel="stylesheet" href="../style.css"/>
+    <script src="../highlight.pack.js"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+</head>
+<body>
+    <header>
+        <div>
+            <a href="../">Home</a>
+        </div>
+        <div>
+            
+            <a href="../feed.xml">rss</a>
+        </div>
+    </header>
+
+<main>
+    <div class="title">
+        <h1>GDB: examine IP addresses in the binary soup.</h1>
+        <time datetime="2020-09-11">2020-09-11</time>
+    </div>
+<p>When debugging network applications, dumping part of the memory to verify that a packet was properly
+received, classified or generated is a common occurence. One issue is that IP addresses are
+harder to read than other fields to the naked eye.</p>
+<p>IP addresses within the packet will be written in network order (big endian) and are either
+128 bits or 32 bits integers. You start to pick up some patterns in hexadecimal dumps but it only
+goes so far.</p>
+<p>One way to proceed would be to ping the decimal representation:</p>
+<pre><code>$ ping -c1 24182987
+PING 24182987 (1.113.0.203) 56(84) bytes of data.
+^C
+--- 24182987 ping statistics ---
+1 packets transmitted, 0 received, 100% packet loss, time 0ms
+</code></pre>
+<p>Which requires you to copy the address and get out of the scope of the debug session,
+unacceptable! Also it can add some noise in you setup. It's just messy!</p>
+<p>Instead, as usual <a href="https://sourceware.org/gdb/current/onlinedocs/gdb/Memory.html">GDB has your back</a>:</p>
+<pre><code>(gdb) x/4ub &amp;ipv4
+0x7fffffffdccc: 203     0       113     1
+(gdb) x/8xh &amp;ipv6
+0x7fffffffdcd0: 0x2001  0x0db8  0x0000  0x0000  0x0000  0x0000  0x0000  0x0001
+</code></pre>
+<p>The short version:</p>
+<ul>
+<li>
+<p><em>examine 4 bytes of memory at address (&amp;ipv4) and represent in decimal</em>,</p>
+</li>
+<li>
+<p><em>examine 8 half-words of memory at address (&amp;ipv6) and represent in hexadecimal</em>.</p>
+</li>
+</ul>
+<p>Actual example and more details:</p>
+<pre><code>$ cat ip_addr.c
+#include &lt;stdint.h&gt;
+
+int main(void)
+{
+    union ipv4 {
+        uint32_t u32;
+        uint8_t u8[4];
+    } ipv4;
+    union ipv6 {
+        struct {
+            uint64_t lo;
+            uint64_t hi;
+        } u64;
+        uint16_t u16[8];
+    } ipv6;
+
+    ipv4 = (union ipv4){ .u8 = { 203, 0, 113, 1 } };
+    ipv6 = (union ipv6){ .u16 = { 0x2001, 0xdb8, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1 } };
+
+    return 0;
+}
+$ gcc -g ip_addr.c &amp;&amp; gdb -ex 'break main' ./a.out
+[snip]
+Breakpoint 1, main () at ip_addr.c:4
+4       {
+(gdb) n
+17          ipv4 = (union ipv4){ .u8 = { 203, 0, 113, 1 } };
+(gdb)
+18          ipv6 = (union ipv6){ .u16 = { 0x2001, 0xdb8, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1 } };
+(gdb)
+20          return 0;
+(gdb) p ipv4.u32
+$1 = 24182987
+(gdb) x/4ub &amp;ipv4
+0x7fffffffdccc: 203     0       113     1
+(gdb) p ipv6.u64
+$2 = {lo = 230170625, hi = 281474976710656}
+(gdb) x/8xh &amp;ipv6
+0x7fffffffdcd0: 0x2001  0x0db8  0x0000  0x0000  0x0000  0x0000  0x0000  0x0001
+</code></pre>
+</main>
+
+</body>
+</html>
