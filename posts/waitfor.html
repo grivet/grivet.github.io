@@ -55,16 +55,7 @@ waitfor () {
 $ waitfor srv0 2223 &amp;&amp; notify-send &quot;Host 'srv0' is ready.&quot;
 </code></pre>
 <h2>Implementation</h2>
-<p>At the surface level, the requirements are simple: wide portability and short list
-of dependencies. It should be something easy to copy into limited shells,
-so POSIX is enforced using <a href="https://www.shellcheck.net/">shellcheck</a>.
-It also relies on <a href="https://linux.die.net/man/8/ping">ping</a> and <a href="https://linux.die.net/man/1/nc">netcat</a>
-being available. I preferred netcat to alternatives such as <code>/dev/tcp</code>
-<a href="https://www.gnu.org/software/bash/manual/bash.html">bash extension</a> as perharps surprisingly I found netcat
-more prevalent than bash on those embedded targets. Similarly, <a href="https://linux.die.net/man/1/socat">socat</a> is
-more useful and I might have it already on most hosts, but if socat is available then so is netcat usually.</p>
-<p>The end result is more complex than I would have liked. The much simpler naive version could be written
-as such:</p>
+<p>A much simpler implementation could be the following:</p>
 <pre><code>waitfor () {
     port=${2:-22}
     until ping -W1 -c1 &quot;$1&quot;; do :; done
@@ -73,15 +64,22 @@ as such:</p>
     echo &quot;Port ${port} is open.&quot;
 }
 </code></pre>
-<p>My issue with it is that interrupting the function does not work well. Usually only the inner
-function (ping or netcat) is interrupted, but not the loop. Thus spamming <code>SIGINT</code> becomes necessary
-to stop the check.</p>
-<p>The solution to this is easier when the inner function is expected to succeed usually in an endless loop.
-In this case the halting condition for the loop is any success of the inner function, while usual failure means
-retrying. Receiving a <code>SIGINT</code> should be considered a specific failure and return a code of <code>128 + SIGINT</code>,
-so 130. Checking the return value of ping however, it does not conform to this spec.</p>
-<p>Instead, the inner function is put in the background and <code>SIGINT</code> is trapped. To avoid unsightly prints related
-to background jobs launch and end, the loop itself is launched within a subshell.</p>
+<p>Which is essentially the same. What I dislike about it is how <code>until</code> behaves in shell.
+The problem is the same for any loops: when cancelling the call, <code>SIGINT</code> can either reach <code>until</code>
+or the command executed. Reaching the latter, the command would exit with non-zero, meaning <code>until</code> would
+not break and continue to attempt it.</p>
+<p>This is a recurring issue when looping on command failures, waiting for them to succeed. This pattern thus
+requires the <code>_cancellable_until</code> to be cleanly cancelled instead. This function will:</p>
+<ol>
+<li>Start the loop in a background process.</li>
+<li>Trap to kill the previous background process when receiving <code>SIGINT</code>.</li>
+<li>Wait on any child process to finish.</li>
+<li>Return <code>1</code> if the child was killed using <code>SIGINT</code>.</li>
+<li>Launch everything in a sub-shell to hide output noise.</li>
+</ol>
+<p>The intended behavior is achieved, but at what cost! All of this to have a clean wait to cancel failure loops.
+Maybe more advanced shells could have better specs, but making the <code>waitfor</code> portable and clean is
+harder than it should be.</p>
 </main>
 
 </body>

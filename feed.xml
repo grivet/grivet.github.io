@@ -5,17 +5,17 @@
     <link>https://www.u256.net</link>
     <description>Recent content on U256</description>
     <generator>shweb</generator>
-    <lastBuildDate>sam. 09 janv. 2021 00:12:37 UTC</lastBuildDate>
+    <lastBuildDate>dim. 17 janv. 2021 22:30:08 UTC</lastBuildDate>
 
     <atom:link href="https://www.u256.net/feed.xml" rel="self" type="application/rss+xml" />
 
     <item>
-        <title>GDB: examine IP addresses</title>
+        <title>Note: GDB: examine IP addresses</title>
         <link>https://www.u256.net/posts/ip-addr-in-gdb.html</link>
         <pubDate>ven. 11 sept. 2020 00:00:00 UTC</pubDate>
 
         <guid>https://www.u256.net/posts/ip-addr-in-gdb.html</guid>
-        <description>Help read IP addresses within GDB.</description>
+        <description>Short memo about displaying IP addresses when debugging.</description>
     </item>
     <item>
         <title>shell: waiting for a host.</title>
