@@ -19,12 +19,19 @@ header {
   justify-content: space-between;
 }
 
+#navbar span:after{content:'\22C4'; padding: 0 5px 0 10px;}
+#navbar span:last-child:after{content:''; display: none;}
+
 time {
   color: #999;
 }
 
 h1 {
   margin-bottom: .5rem;
+}
+
+h1, h2, h3, h4, h5 {
+  font-family: et-book,Palatino,"Palatino Linotype","Palatino LT STD","Book Antiqua",Georgia,serif;
 }
 
 pre {
@@ -57,14 +64,14 @@ p {
 
 @media screen and (prefers-color-scheme: dark) {
   body {
-    background-color: #0f0f0f;
-    color: #e5e5e5;
+    background-color: #002b36;
+    color: #fdf6e3;
   }
   pre {
-    background-color: #151515;
-    color: #eee;
+    background-color: #002b36;
+    color: #93a1a1;
   }
   a {
-    color: #63b6fc;
+    color: #fdf6e3;
   }
 }

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" href="data:,"/>
-    <title>U256 | Note: GDB: examine IP addresses</title>
+    <title>U256 | GDB: examine IP addresses</title>
     <link rel="stylesheet" href="../style.css"/>
     <script src="../highlight.pack.js"></script>
     <script>hljs.initHighlightingOnLoad();</script>
@@ -15,14 +15,16 @@
             <a href="../">Home</a>
         </div>
         <div>
-            
-            <a href="../feed.xml">rss</a>
+<div id='navbar'>
+<span><a href="./">notes</a></span>
+<span><a href="../posts">posts</a></span>
+</div>
         </div>
     </header>
 
 <main>
     <div class="title">
-        <h1>Note: GDB: examine IP addresses</h1>
+        <h1>GDB: examine IP addresses</h1>
         <time datetime="2020-09-11">2020-09-11</time>
     </div>
 <p>Reading IP fields in C structs is not practical when debugging with GDB.<br />
@@ -32,7 +34,7 @@ I usually don't remember the syntax, here it is:</p>
 (gdb) x/8xh &amp;ipv6
 0x7fffffffdcd0: 0x2001  0x0db8  0x0000  0x0000  0x0000  0x0000  0x0000  0x0001
 </code></pre>
-<p>Those commands will:</p>
+<p>These commands will:</p>
 <ul>
 <li>
 <p><em>examine 4 bytes of memory at address (&amp;ipv4) and represent in decimal</em>,</p>

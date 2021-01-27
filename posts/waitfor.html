@@ -15,8 +15,10 @@
             <a href="../">Home</a>
         </div>
         <div>
-            
-            <a href="../feed.xml">rss</a>
+<div id='navbar'>
+<span><a href="../notes">notes</a></span>
+<span><a href="./">posts</a></span>
+</div>
         </div>
     </header>
 
@@ -55,7 +57,7 @@ waitfor () {
 $ waitfor srv0 2223 &amp;&amp; notify-send &quot;Host 'srv0' is ready.&quot;
 </code></pre>
 <h2>Implementation</h2>
-<p>A much simpler implementation could be the following:</p>
+<p>A simpler implementation could be the following:</p>
 <pre><code>waitfor () {
     port=${2:-22}
     until ping -W1 -c1 &quot;$1&quot;; do :; done
