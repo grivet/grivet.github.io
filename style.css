@@ -49,17 +49,13 @@ hr {
   margin-top: 2rem;
 }
 
-p {
+p, li {
   line-height: 1.4;
 }
 
 ::selection {
   background: #ececec;
   color: #000;
-}
-
-.list .description {
-  margin-top: .5rem;
 }
 
 @media screen and (prefers-color-scheme: dark) {

@@ -1,0 +1,54 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,"/>
+    <title>U256 | GDB: hexadecimal dump</title>
+    <link rel="stylesheet" href="../style.css"/>
+    <script src="../highlight.pack.js"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+</head>
+<body>
+    <header>
+        <div>
+            <a href="../">Home</a>
+        </div>
+        <div>
+<div id='navbar'>
+<span><a href="./">notes</a></span>
+<span><a href="../posts">posts</a></span>
+</div>
+        </div>
+    </header>
+
+<main>
+    <div class="title">
+        <h1>GDB: hexadecimal dump</h1>
+        <time datetime="2021-01-10">2021-01-10</time>
+    </div>
+<p>Displaying patterns in corrupted memory helps identifying errors.
+Here is how to use <code>xxd</code> from within GDB.</p>
+<p>It could be adapted to any kind of 'memory transmogrifier' that would
+marshall bytes for human eyes.</p>
+<pre><code>define xxd
+dump binary memory dump.bin ((char*)$arg0) ((char*)$arg0)+$arg1
+shell xxd dump.bin
+end
+</code></pre>
+<p>Note: <code>$arg0</code> is coerced to type <code>(char *)</code> to ensure pointer arithmetic remains byte-wise.
+This allows the first argument to be a pointer to anything, without having to take the raw
+address. The second argument will be the number of bytes dumped.</p>
+<h2>Usage</h2>
+<pre><code>(gdb) p N * sizeof(keys[0])
+$3 = 64
+(gdb) xxd keys 64
+00000000: 3df2 a3ef 2f43 67ad 6eb4 52e5 a19d 3ac8  =.../Cg.n.R...:.
+00000010: a6fc 50ea c48e 4c4d 4e71 184e 96bb 0346  ..P...LMNq.N...F
+00000020: ee06 5d1f eebc 934f c97d c239 74b8 17b9  ..]....O.}.9t...
+00000030: 78f0 3a8d a2a5 86b5 5b72 6847 8aef 456d  x.:.....[rhG..Em
+</code></pre>
+</main>
+
+</body>
+</html>
