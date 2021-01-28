@@ -5,17 +5,17 @@
     <link>https://u256.net</link>
     <description>Recent content on U256</description>
     <generator>shweb</generator>
-    <lastBuildDate>mer. 27 janv. 2021 23:57:58 UTC</lastBuildDate>
+    <lastBuildDate>jeu. 28 janv. 2021 00:49:03 UTC</lastBuildDate>
 
     <atom:link href="https://u256.net/posts/feed.xml" rel="self" type="application/rss+xml" />
 
     <item>
-        <title>shell: waiting for a host.</title>
+        <title>shell: cleaner cancellable until</title>
         <link>https://u256.net/posts/waitfor.html</link>
         <pubDate>mar. 18 août 2020 00:00:00 UTC</pubDate>
 
         <guid>https://u256.net/posts/waitfor.html</guid>
-        <description>A shell function to wait for a machine to be ready.</description>
+        <description>limits of POSIX shell when expecting failure</description>
     </item>
 
   </channel>

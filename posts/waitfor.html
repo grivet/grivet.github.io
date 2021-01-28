@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" href="data:,"/>
-    <title>U256 | shell: waiting for a host.</title>
+    <title>U256 | shell: cleaner cancellable until</title>
     <link rel="stylesheet" href="../style.css"/>
     <script src="../highlight.pack.js"></script>
     <script>hljs.initHighlightingOnLoad();</script>
@@ -24,14 +24,34 @@
 
 <main>
     <div class="title">
-        <h1>shell: waiting for a host.</h1>
+        <h1>shell: cleaner cancellable until</h1>
         <time datetime="2020-08-18">2020-08-18</time>
     </div>
-<p>A recurring pattern in my workflow has been to reboot a machine and wait for its
-networking to be enabled. One issue here is that the latency until completion falls squarely within
-&quot;too short to do something else, too long to stare at my screen&quot;. Instead, a shell function allows
-chaining a connection event with my desktop notification bus (or, well, you know, <em>anything</em>).
-The full check is for a <code>TCP</code> connection to be possible on a port, as usually access is through <code>SSH</code>.</p>
+<p>A recurring pattern in my workflow has been to reboot a machine and then wait for SSH access
+to be available. One issue is that the latency until completion falls squarely within
+&quot;too short to do something else, too long to stare at my screen&quot;.</p>
+<p>To avoid getting distracted and having another context switch, I wrote a short shell function:</p>
+<pre><code>waitfor () {
+    port=${2:-22}
+    until ping -W1 -c1 &quot;$1&quot;; do :; done
+    echo &quot;Ping ok.&quot;
+    until nc -w 1 -z &quot;$1&quot; &quot;${port}&quot; do :; done
+    echo &quot;Port ${port} is open.&quot;
+}
+</code></pre>
+<p>Which can be used to chain the discovery of the open port with e.g. a notification:</p>
+<pre><code># Usage:
+$ waitfor srv0 2223 &amp;&amp; notify-send &quot;Host 'srv0' is ready.&quot;
+</code></pre>
+<p>So far so good. The function is simple and requires minimal dependencies: POSIX shell, <code>ping</code> and
+<code>netcat</code> available. Ping could be removed if ICMP is blocked and TCP access is all that matters,
+but it is not the case usually for me.</p>
+<p>The issue with this implementation however is a slightly messy behavior that would grate me
+anytime I would use it and then cancel. Sending <code>SIGINT</code> to the shell, either <code>ping</code> or <code>netcat</code>
+will receive it, or the shell itself executing <code>until</code>. If the former, as the loop is written
+to expect failure and stop only on success, it would continue ; cue spamming C-C to stop.</p>
+<p>Not a big issue for sure, but I wanted to know how it could be fixed, preferrably keeping it
+entirely POSIX. In the end I came up with the following:</p>
 <pre><code># Run $@ until it succeeds, but allow SIGINT to cancel.
 _cancellable_until () {(
     cancel=&quot;false&quot;
@@ -52,36 +72,21 @@ waitfor () {
     _cancellable_until nc -w 1 -z &quot;$1&quot; &quot;${port}&quot; || return 1
     echo &quot;Port ${port} is open.&quot;
 }
-
-# Usage:
-$ waitfor srv0 2223 &amp;&amp; notify-send &quot;Host 'srv0' is ready.&quot;
 </code></pre>
-<h2>Implementation</h2>
-<p>A simpler implementation could be the following:</p>
-<pre><code>waitfor () {
-    port=${2:-22}
-    until ping -W1 -c1 &quot;$1&quot;; do :; done
-    echo &quot;Ping ok.&quot;
-    until nc -w 1 -z &quot;$1&quot; &quot;${port}&quot; do :; done
-    echo &quot;Port ${port} is open.&quot;
-}
-</code></pre>
-<p>Which is essentially the same. What I dislike about it is how <code>until</code> behaves in shell.
-The problem is the same for any loops: when cancelling the call, <code>SIGINT</code> can either reach <code>until</code>
-or the command executed. Reaching the latter, the command would exit with non-zero, meaning <code>until</code> would
-not break and continue to attempt it.</p>
-<p>This is a recurring issue when looping on command failures, waiting for them to succeed. This pattern thus
-requires the <code>_cancellable_until</code> to be cleanly cancelled instead. This function will:</p>
-<ol>
-<li>Start the loop in a background process.</li>
-<li>Trap to kill the previous background process when receiving <code>SIGINT</code>.</li>
-<li>Wait on any child process to finish.</li>
-<li>Return <code>1</code> if the child was killed using <code>SIGINT</code>.</li>
-<li>Launch everything in a sub-shell to hide output noise.</li>
-</ol>
-<p>The intended behavior is achieved, but at what cost! All of this to have a clean wait to cancel failure loops.
-Maybe more advanced shells could have better specs, but making the <code>waitfor</code> portable and clean is
-harder than it should be.</p>
+<p>First thing to note: the loop body is empty, so this is not iso-functional with the actual
+<code>until</code> loop of course. Adding a separate body was of no use to me and I preferred avoid the complexity.</p>
+<p>The actual loop is executed as a background job. Immediately after starting it, <code>SIGINT</code>
+is trapped in the current shell, to send the default <code>SIGTERM</code> to the last job when received.
+The current shell will then wait for the job to complete: either the command in parameter (&quot;<code>$@</code>&quot;)
+finally succeeds or <code>SIGINT</code> is issued.</p>
+<p>If <code>SIGINT</code> is received, the cancellation will make the function return a non-zero exit value, allowing
+the caller to be aware of it, and stop immediately.</p>
+<p>Additionally, the whole <code>_cancellable_until</code> is executed in another subshell
+(started by the <code>()</code> within the function <code>{}</code>), which will avoid printing the job logs, to reduce visual
+noise.</p>
+<p>The intended behavior is achieved, but at what cost! All of this to have a clean failure loop
+cancellation. Maybe more advanced shells could have better primitives, but making <code>waitfor</code> portable
+and clean was more complex than it should have been.</p>
 </main>
 
 </body>
