@@ -14,12 +14,10 @@
         <div>
             <a href="../">Home</a>
         </div>
-        <div>
 <div id='navbar'>
 <span><a href="../notes">notes</a></span>
 <span><a href="./">posts</a></span>
 </div>
-        </div>
     </header>
 
 <main>
@@ -74,7 +72,7 @@ waitfor () {
 }
 </code></pre>
 <p>First thing to note: the loop body is empty, so this is not iso-functional with the actual
-<code>until</code> loop of course. Adding a separate body was of no use to me and I preferred avoid the complexity.</p>
+<code>until</code> loop of course. Adding a separate body was of no use to me and I preferred to avoid the complexity.</p>
 <p>The actual loop is executed as a background job. Immediately after starting it, <code>SIGINT</code>
 is trapped in the current shell, to send the default <code>SIGTERM</code> to the last job when received.
 The current shell will then wait for the job to complete: either the command in parameter (&quot;<code>$@</code>&quot;)
