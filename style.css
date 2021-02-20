@@ -19,7 +19,7 @@ header {
   justify-content: space-between;
 }
 
-#navbar span:after{content:'\22C4'; padding: 0 5px 0 5px;}
+#navbar span:after{content:'\22C4'; padding: 0 5px 0 10px;}
 #navbar span:last-child:after{content:''; display: none;}
 
 time {
@@ -45,6 +45,14 @@ pre {
   background-color: #eee;
 }
 
+blockquote {
+  background-color: #eee;
+  font-size: 16px;
+  margin-left: 32px;
+  border-left: 4px solid #CCC;
+  padding: 1px 0px 1px 8px;
+}
+
 hr {
   margin-top: 2rem;
 }
@@ -52,6 +60,8 @@ hr {
 p, li {
   line-height: 1.4;
 }
+
+span.description:before { content:'\2014  '; }
 
 ::selection {
   background: #ececec;
@@ -63,8 +73,8 @@ p, li {
     background-color: #002b36;
     color: #fdf6e3;
   }
-  pre {
-    background-color: #002b36;
+  pre, blockquote {
+    background-color: #003340;
     color: #93a1a1;
   }
   a {

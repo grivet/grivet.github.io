@@ -1,0 +1,128 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,"/>
+    <title>U256 | A fast lock-less MPSC queue</title>
+    <link rel="stylesheet" href="../style.css"/>
+
+    
+</head>
+<body>
+    <header>
+        <div>
+            <a href="../">Home</a>
+        </div>
+<div id='navbar'>
+<span><a href="../notes">notes</a></span>
+<span><a href="./">posts</a></span>
+</div>
+    </header>
+
+<main>
+    <div class="title">
+        <h1>A fast lock-less MPSC queue</h1>
+        <time datetime="2021-02-21">2021-02-21</time>
+    </div>
+<blockquote>
+<p>Code available on <a href="https://github.com/grivet/mpsc-queue">github</a>.</p>
+</blockquote>
+<p>Sharing mutable data disables concurrency, if data consistency is of any import.</p>
+<p>A simple way to never share mutable data is to keep it isolated. A simple rule
+to enforce isolation is to verify that only a single reference ever exists of
+mutable data.</p>
+<p>If references are unique, the concurrent system must propose a way to safely communicate
+ownership changes. This building block would be a critical primitive in the system.</p>
+<p>For <strong>thread-per-core</strong> applications, I found the <a href="http://www.1024cores.net/home/lock-free-algorithms/queues/intrusive-mpsc-node-based-queue">queue described by Dmitri Vyukov</a> simple and versatile.
+It offers interesting properties but has important caveats. Vyukov's description is rather terse,
+so it could be useful to expand on what he wrote.</p>
+<h2>Taxonomy</h2>
+<p>This message queue is <strong>intrusive</strong> which is great for high-performance systems. It follows
+that the queue is <strong>unbounded</strong>, as any item could hold a new node to enqueue.</p>
+<p>Multiple producers can insert elements <strong>wait-free</strong>. Insertion is done in a
+finite and constant number of steps, without requiring state synchronization
+with other writers. Insertion is done using a single atomic exchange.
+This is much lighter that Compare-And-Swap based queues, which must
+execute a heavy atomic operation until it succeeds.</p>
+<p>A single consumer can remove elements from the queue at any time (making the queue MPSC). Checking
+whether the queue contains an element is <strong>wait-free</strong>, but the consumer may have to repeat reads
+until producers have finished writing. A single producer being suspended could block the consumer
+from actually removing elements. No forward-progress can be guaranteed for the consumer in that case.</p>
+<p>Ordering is <strong>per-producer FIFO</strong>, thus keeping the order in which elements are inserted from each
+producer point of view. Of course, among producers no ordering is guaranteed, unless additional
+synchronization is used.</p>
+<p>This makes the queue useful for low-latency systems. It is very lightweight both in terms of memory
+(3 pointers for the head, 1 pointer per node) and instructions. It is an interesting structure for
+<strong>thread-per-core</strong> systems, where threads are not supposed to be suspended. It could be used to
+implement the <a href="http://www.1024cores.net/home/lock-free-algorithms/queues/intrusive-mpsc-node-based-queue">Actor model</a> as well.</p>
+<p>Some limitations already evoked should be clarified however.</p>
+<h2>Caveats</h2>
+<p>To explain the queue limitations, its two operations must be examined.</p>
+<h3>Insertion</h3>
+<p>The queue is implemented using a singly-linked list. Insertion is done at the
+back of the queue. First the current end is swapped with the new node atomically.
+Then the previous end is written to point to the new node. To follow Vyukov's
+nomenclature, the end-node of the chain is the head. A producer will
+only manipulate the head.</p>
+<p>The head swap is atomic, however the link from the previous head to the new
+one is done in a separate operation. This means that the chain is
+momentarily broken, when the previous head still points to <code>NULL</code> and the
+current head has been inserted.</p>
+<p>Considering a series of insertions, the queue state will remain consistent
+and the insertions order is compatible with their precedence, thus the queue
+is serializable. However, because an insertion consists in two separate memory
+transactions, it is not linearizable.</p>
+<h3>Removal</h3>
+<p>The consumer must deal with the queue inconsistency. It will manipulate
+the tail of the queue and move it along the latest consumed elements.
+When an end of the chain of elements is found (the next pointer is <code>NULL</code>),
+the tail is compared with the head.</p>
+<p>If both points to different addresses, then the queue is in an inconsistent
+state: the tail cannot move forward as the next is <code>NULL</code>, but the head is not
+the last element in the chain: this can only happen if the chain is broken.</p>
+<p>In this case, the consumer must wait for the producer to finish writing the
+next pointer of its current tail.</p>
+<p>Removal is thus in most cases (when there are elements in the queue)
+accomplished without using atomics, until the last element of the queue.
+There, the head is atomically loaded. If the queue is in a consistent state,
+the head is moved back to the queue stub by inserting the stub in the queue:
+ending the queue is the same as an insertion, which is one atomic exchange.</p>
+<h3>Safety</h3>
+<p>Because the queue can be in transient inconsistent states, the reader needs
+to verify it before removing an element. This check is dependent on producers
+finishing their writes.</p>
+<p>If a producer was suspended after exchanging the head, but before linking to the new one,
+the consumer is blocked from reading until the producer resumes. If the producer is cancelled,
+then the consumer will never be able to access the remaining entries.</p>
+<p>If the producers are very rarely or never suspended, then inconsistent states should
+be short and rare. Producers should never insert while being cancellable, to avoid
+risks of losing memory.</p>
+<h2>Usage</h2>
+<p>The queue is lockless. To benefit from this property, ideally neither producers nor
+consumer should have to take a lock to use it. Unfortunately, this means that there is
+no proper way to signal when new elements are available in the queue: the consumer
+thread is forced to poll it for new items.</p>
+<p>Such polling can be implemented using <strong>exponential backoff</strong> if no other work is expected.
+It should reduce useless activity of the consumer thread, at the price of some latency
+for the first new element if activity picks up.</p>
+<p>This is the reason I named the removal function <code>mpsc_queue_poll</code>. It does not guarantee
+to return an element, but will signal when it does.</p>
+<p>Also, to properly implement exponential backoff, the consumer thread must differentiate between
+seeing the queue empty or in an inconsistent state. Instead of a binary <code>NULL</code>/<code>addr</code> returned for
+an item, I defined three polling results:</p>
+<ul>
+<li><code>MPSC_QUEUE_EMPTY</code>, which means that the queue has no elements and backoff could start.</li>
+<li><code>MPSC_QUEUE_ITEM</code>, in which case the given pointer is set to the removed element.</li>
+<li><code>MPSC_QUEUE_RETRY</code>, signaling that a producer has not yet finished writing and polling should
+be attempted again soon. No need to start backoff.</li>
+</ul>
+<h2>Performance</h2>
+<p>The repository linked with this post contains a small benchmark comparing
+Vyukov queue to other MPSC queues. This post being too long already, I will
+leave actual benchmark for another time, but it is clear that the queue simplicity
+makes it interesting, especially as the number of cores grows.</p>
+</main>
+
+</body>
+</html>

@@ -5,14 +5,14 @@
     <link>https://u256.net</link>
     <description>Recent content on U256</description>
     <generator>shweb</generator>
-    <lastBuildDate>jeu. 28 janv. 2021 01:00:59 UTC</lastBuildDate>
+    <lastBuildDate>2021-02-20 23:54:04 UTC</lastBuildDate>
 
     <atom:link href="https://u256.net/notes/feed.xml" rel="self" type="application/rss+xml" />
 
     <item>
         <title>GDB: hexadecimal dump</title>
         <link>https://u256.net/notes/gdb-xxd.html</link>
-        <pubDate>dim. 10 janv. 2021 00:00:00 UTC</pubDate>
+        <pubDate>2021-01-10 00:00:00 UTC</pubDate>
 
         <guid>https://u256.net/notes/gdb-xxd.html</guid>
         <description></description>
@@ -20,7 +20,7 @@
     <item>
         <title>GDB: examine IP addresses</title>
         <link>https://u256.net/notes/ip-addr-in-gdb.html</link>
-        <pubDate>ven. 11 sept. 2020 00:00:00 UTC</pubDate>
+        <pubDate>2020-09-11 00:00:00 UTC</pubDate>
 
         <guid>https://u256.net/notes/ip-addr-in-gdb.html</guid>
         <description></description>
