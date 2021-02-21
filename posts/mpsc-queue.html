@@ -55,7 +55,7 @@ synchronization is used.</p>
 <p>This makes the queue useful for low-latency systems. It is very lightweight both in terms of memory
 (3 pointers for the head, 1 pointer per node) and instructions. It is an interesting structure for
 <strong>thread-per-core</strong> systems, where threads are not supposed to be suspended. It could be used to
-implement the <a href="http://www.1024cores.net/home/lock-free-algorithms/queues/intrusive-mpsc-node-based-queue">Actor model</a> as well.</p>
+implement the <a href="https://en.wikipedia.org/wiki/Actor_model">Actor model</a> as well.</p>
 <p>Some limitations already evoked should be clarified however.</p>
 <h2>Caveats</h2>
 <p>To explain the queue limitations, its two operations must be examined.</p>
