@@ -64,8 +64,8 @@ p, li {
 span.description:before { content:'\2014  '; }
 
 ::selection {
-  background: #ececec;
-  color: #000;
+  background: #002b36;
+  color: #ccc;
 }
 
 @media screen and (prefers-color-scheme: dark) {
@@ -79,5 +79,9 @@ span.description:before { content:'\2014  '; }
   }
   a {
     color: #fdf6e3;
+  }
+  ::selection {
+    background: #ececec;
+    color: #000;
   }
 }
