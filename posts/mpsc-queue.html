@@ -46,9 +46,12 @@ with other writers. Insertion is done using a single atomic exchange.
 This is much lighter that Compare-And-Swap based queues, which must
 execute a heavy atomic operation until it succeeds.</p>
 <p>A single consumer can remove elements from the queue at any time (making the queue MPSC). Checking
-whether the queue contains an element is <strong>wait-free</strong>, but the consumer may have to repeat reads
-until producers have finished writing. A single producer being suspended could block the consumer
-from actually removing elements. No forward-progress can be guaranteed for the consumer in that case.</p>
+whether the queue contains an element is done in a finite number of steps, which do not contend
+with any concurrent operation for access to any memory location. If a producer has not yet finished
+writing, the consumer will not be blocked. It will however not be able to access the elements past
+the node being written in, and will need to <em>abort</em> and retry later. This makes the removal
+<strong>obstruction-free</strong>. A single producer being suspended could block the consumer from actually
+removing elements, resulting in a <strong>livelock</strong>.</p>
 <p>Ordering is <strong>per-producer FIFO</strong>, thus keeping the order in which elements are inserted from each
 producer point of view. Of course, among producers no ordering is guaranteed, unless additional
 synchronization is used.</p>
