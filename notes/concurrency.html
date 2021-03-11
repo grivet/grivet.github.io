@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,"/>
+    <title>U256 | Concurrency cheatsheet</title>
+    <link rel="stylesheet" href="../style.css"/>
+
+    
+</head>
+<body>
+    <header>
+        <div>
+            <a href="../">Home</a>
+        </div>
+<div id='navbar'>
+<span><a href="./">notes</a></span>
+<span><a href="../posts">posts</a></span>
+</div>
+    </header>
+
+<main>
+    <div class="title">
+        <h1>Concurrency cheatsheet</h1>
+        <time datetime="2021-03-07">2021-03-07</time>
+    </div>
+<blockquote>
+<p>See Kir Fraser's dissertation <a href="https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-579.pdf">&quot;Practical Lock Freedom&quot;</a>.</p>
+</blockquote>
+<h2>Structure properties</h2>
+<p><strong>Lock-freedom</strong>: A data structure is lock-free iff <em>some</em> operation on the
+structure completes after a finite number of steps have been executed system-wide.</p>
+<p><strong>Wait-freedom</strong>: A data structure is wait-free iff <em>every</em> operation on the
+structure completes after a finite number of steps. Livelock is impossible and worst-case
+execution is known for every operation.</p>
+<p><strong>Obstruction-freedom</strong>: A data structure is obstruction-free iff <em>every</em> operation
+on the structure completes after executing a finite number of steps that do not contend with
+any concurrent operation for access to any memory location.</p>
+<h2>Operation properties</h2>
+<p><strong>Disjoint-access parallelism</strong>: A set of operations are disjoint-access parallel iff
+any pair of operation invocations which access disjoint sets of memory locations do not directly
+affect each others' execution.</p>
+<p><strong>Linearizability</strong>: If an operation is implemented as a synchronous procedure, a call to that procedure
+is an invocation and the eventual return from that procedure is a response. An operation is linearizable iff
+it <em>appears</em> to execute instantaneously at some point between its invocation and its response.</p>
+<p><strong>Serializability</strong>: A series of operation is serializable iff invocations and responses can be reordered to yield
+a sequential history, and such history would be compatible with each operation precedence. This is less strict than
+linearizability, because such compatible reordering can exist without instantaneous operations.</p>
+</main>
+
+</body>
+</html>

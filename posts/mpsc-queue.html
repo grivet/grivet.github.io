@@ -28,44 +28,38 @@
 <blockquote>
 <p>Code available on <a href="https://github.com/grivet/mpsc-queue">github</a>.</p>
 </blockquote>
-<p>Sharing mutable data disables concurrency, if data consistency is of any import.</p>
-<p>A simple way to never share mutable data is to keep it isolated. A simple rule
-to enforce isolation is to verify that only a single reference ever exists of
-mutable data.</p>
+<p>Sharing mutable data disables concurrency.</p>
+<p>A simple way to never share mutable data is to keep it isolated and a simple rule
+to enforce isolation is to only allow a single reference to it.</p>
 <p>If references are unique, the concurrent system must propose a way to safely communicate
 ownership changes. This building block would be a critical primitive in the system.</p>
-<p>For <strong>thread-per-core</strong> applications, I found the <a href="http://www.1024cores.net/home/lock-free-algorithms/queues/intrusive-mpsc-node-based-queue">queue described by Dmitri Vyukov</a> simple and versatile.
-It offers interesting properties but has important caveats. Vyukov's description is rather terse,
-so it could be useful to expand on what he wrote.</p>
+<p>I found the <a href="http://www.1024cores.net/home/lock-free-algorithms/queues/intrusive-mpsc-node-based-queue">queue described by Dmitri Vyukov</a> simple and useful.
+It offers interesting properties but has important caveats.</p>
 <h2>Taxonomy</h2>
 <p>This message queue is <strong>intrusive</strong> which is great for high-performance systems. It follows
 that the queue is <strong>unbounded</strong>, as any item could hold a new node to enqueue.</p>
-<p>Multiple producers can insert elements <strong>wait-free</strong>. Insertion is done in a
-finite and constant number of steps, without requiring state synchronization
-with other writers. Insertion is done using a single atomic exchange.
-This is much lighter that Compare-And-Swap based queues, which must
-execute a heavy atomic operation until it succeeds.</p>
-<p>A single consumer can remove elements from the queue at any time (making the queue MPSC). Checking
-whether the queue contains an element is done in a finite number of steps, which do not contend
-with any concurrent operation for access to any memory location. If a producer has not yet finished
-writing, the consumer will not be blocked. It will however not be able to access the elements past
-the node being written in, and will need to <em>abort</em> and retry later. This makes the removal
-<strong>obstruction-free</strong>. A single producer being suspended could block the consumer from actually
-removing elements, resulting in a <strong>livelock</strong>.</p>
 <p>Ordering is <strong>per-producer FIFO</strong>, thus keeping the order in which elements are inserted from each
 producer point of view. Of course, among producers no ordering is guaranteed, unless additional
 synchronization is used.</p>
-<p>This makes the queue useful for low-latency systems. It is very lightweight both in terms of memory
-(3 pointers for the head, 1 pointer per node) and instructions. It is an interesting structure for
-<strong>thread-per-core</strong> systems, where threads are not supposed to be suspended. It could be used to
-implement the <a href="https://en.wikipedia.org/wiki/Actor_model">Actor model</a> as well.</p>
-<p>Some limitations already evoked should be clarified however.</p>
-<h2>Caveats</h2>
-<p>To explain the queue limitations, its two operations must be examined.</p>
+<p>Insertion is done in a finite and constant number of steps by any number of producers.
+State synchronization is done at a single point using an atomic exchange. This is lighter than
+compare-exchange based queues as there is no loop to resolve concurrent writes.</p>
+<p>Reading the queue state and removing elements is only allowed to a single consumer at a time.
+Peeking at the tail of the queue is done in a finite and constant number of steps, like insertion.
+Removal however requires producers to complete their writes (more on why below), making the consumer
+dependent on other threads forward-progress.</p>
+<p>Insertion and peeking are finite and constant, but removal, while resolved in constant time as well (either
+for success or failure) is dependent on other threads progressing. This makes the queue <strong>obstruction-free</strong>
+only, the weakest forward-guarantee.</p>
+<p>Such structure relies on cooperative peers to avoid livelock. This might not be an issue for some
+concurrent systems, but it is important to keep in mind.</p>
+<p>This queue can be useful for low-latency systems, such as <em>thread-per-core</em> applications.
+It could be used to implement the <a href="https://en.wikipedia.org/wiki/Actor_model">Actor model</a> as well.</p>
+<h2>Operations</h2>
 <h3>Insertion</h3>
 <p>The queue is implemented using a singly-linked list. Insertion is done at the
 back of the queue. First the current end is swapped with the new node atomically.
-Then the previous end is written to point to the new node. To follow Vyukov's
+Then the previous end is updated to point to the new node. To follow Vyukov's
 nomenclature, the end-node of the chain is the head. A producer will
 only manipulate the head.</p>
 <p>The head swap is atomic, however the link from the previous head to the new
@@ -93,14 +87,13 @@ the head is moved back to the queue stub by inserting the stub in the queue:
 ending the queue is the same as an insertion, which is one atomic exchange.</p>
 <h3>Safety</h3>
 <p>Because the queue can be in transient inconsistent states, the reader needs
-to verify it before removing an element. This check is dependent on producers
-finishing their writes.</p>
+to peek before removing an element. Finding a consistent state is dependent on
+producers completing their writes.</p>
 <p>If a producer was suspended after exchanging the head, but before linking to the new one,
 the consumer is blocked from reading until the producer resumes. If the producer is cancelled,
 then the consumer will never be able to access the remaining entries.</p>
 <p>If the producers are very rarely or never suspended, then inconsistent states should
-be short and rare. Producers should never insert while being cancellable, to avoid
-risks of losing memory.</p>
+be short and rare. Producers should never insert while being cancellable.</p>
 <h2>Usage</h2>
 <p>The queue is lockless. To benefit from this property, ideally neither producers nor
 consumer should have to take a lock to use it. Unfortunately, this means that there is
