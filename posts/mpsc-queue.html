@@ -50,7 +50,7 @@ Removal however requires producers to complete their writes (more on why below),
 dependent on other threads forward-progress.</p>
 <p>Insertion and peeking are finite and constant, but removal, while resolved in constant time as well (either
 for success or failure) is dependent on other threads progressing. This makes the queue <strong>obstruction-free</strong>
-only, the weakest forward-guarantee.</p>
+only, the weakest forward-progress guarantee.</p>
 <p>Such structure relies on cooperative peers to avoid livelock. This might not be an issue for some
 concurrent systems, but it is important to keep in mind.</p>
 <p>This queue can be useful for low-latency systems, such as <em>thread-per-core</em> applications.
@@ -59,15 +59,15 @@ It could be used to implement the <a href="https://en.wikipedia.org/wiki/Actor_m
 <h3>Insertion</h3>
 <p>The queue is implemented using a singly-linked list. Insertion is done at the
 back of the queue. First the current end is swapped with the new node atomically.
-Then the previous end is updated to point to the new node. To follow Vyukov's
+The previous end is then updated to point to the new node. To follow Vyukov's
 nomenclature, the end-node of the chain is the head. A producer will
 only manipulate the head.</p>
 <p>The head swap is atomic, however the link from the previous head to the new
-one is done in a separate operation. This means that the chain is
-momentarily broken, when the previous head still points to <code>NULL</code> and the
-current head has been inserted.</p>
+one is done in a separate operation. This means that the chain is momentarily
+broken when the previous head still points to <code>NULL</code> and the current head has
+been inserted.</p>
 <p>Considering a series of insertions, the queue state will remain consistent
-and the insertions order is compatible with their precedence, thus the queue
+and their order is compatible with their precedence, thus this operation
 is serializable. However, because an insertion consists in two separate memory
 transactions, it is not linearizable.</p>
 <h3>Removal</h3>
