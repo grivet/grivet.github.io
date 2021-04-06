@@ -34,6 +34,11 @@ h1, h2, h3, h4, h5 {
   font-family: et-book,Palatino,"Palatino Linotype","Palatino LT STD","Book Antiqua",Georgia,serif;
 }
 
+code {
+  font-size: 14px;
+  background-color: #eee;
+}
+
 pre {
   font-family: Liberation Mono, Consolas, monospace, Courier;
   font-variant-ligatures: none;
@@ -73,7 +78,7 @@ span.description:before { content:'\2014  '; }
     background-color: #002b36;
     color: #fdf6e3;
   }
-  pre, blockquote {
+  code, pre, blockquote {
     background-color: #003340;
     color: #93a1a1;
   }

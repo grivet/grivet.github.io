@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,"/>
+    <title>U256 | shell: errno memo</title>
+    <link rel="stylesheet" href="../style.css"/>
+
+    
+</head>
+<body>
+    <header>
+        <div>
+            <a href="../">Home</a>
+        </div>
+<div id='navbar'>
+<span><a href="../notes">notes</a></span>
+<span><a href="./">posts</a></span>
+</div>
+    </header>
+
+<main>
+    <div class="title">
+        <h1>shell: errno memo</h1>
+        <time datetime="2021-04-07">2021-04-07</time>
+    </div>
+<p>Your <code>open</code> call just set <code>errno</code> to <code>26</code>, you're in GDB and don't want to
+write another /tmp/test.new2.c to discover what just happened. Another day ruined.</p>
+<p>The year is <code>$current_year</code> and I don't care to learn errno values.<br />
+Enough grepping around. Let's build a better tomorrow.</p>
+<pre><code># $1: (nil) or errno value
+# output: full errno list or errno value name
+errno () {(
+    err=${1}
+
+    [ &quot;$err&quot; ] &amp;&amp; filter=&quot;| grep \&quot;${err}\&quot;&quot;
+    filter=&quot;$filter |column -t&quot;
+    cmdline=&quot;cc -E -dM /usr/include/errno.h \
+            |grep 'define E' \
+            |sort -n -k 3 \
+            |cut -d' ' -f2- \
+            $filter&quot;
+    eval $cmdline
+)}
+
+$ errno 26
+ETXTBSY  26
+ENOKEY   126
+$ errno ENOBUFS
+ENOBUFS  105
+</code></pre>
+<p>Your C compiler of choice will preprocess only an include from the command line,
+that happens to be the definition for errno codes on the system. After some text
+manipulation and formatting, a filter is applied, optionally a match on a name
+or a value.</p>
+<p>So many seconds saved, now let's do something less productive.</p>
+</main>
+
+</body>
+</html>
