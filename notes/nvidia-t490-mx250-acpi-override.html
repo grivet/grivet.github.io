@@ -1,0 +1,120 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,"/>
+    <title>U256 | Disabling the discrete GPU on a Thinkpad T490</title>
+    <link rel="stylesheet" href="../style.css"/>
+
+    
+</head>
+<body>
+    <header>
+        <div>
+            <a href="../">Home</a>
+        </div>
+<div id='navbar'>
+<span><a href="./">notes</a></span>
+<span><a href="../posts">posts</a></span>
+</div>
+    </header>
+
+<main>
+    <div class="title">
+        <h1>Disabling the discrete GPU on a Thinkpad T490</h1>
+        <time datetime="2021-04-26">2021-04-26</time>
+    </div>
+<p>I made the error of opting for a model with a discrete GPU, that I never use.
+Unfortunately, it is impossible to disable by 'conventional' means: Lenovo did
+not bother to add a BIOS switch, and the usual <code>bbswitch</code> / Optimus / VGA switcheroo are unable
+to send the proper command to the device.</p>
+<p>Someone described how to <a href="https://major.io/2020/01/24/disable-nvidia-gpu-thinkpad-t490/">override the ACPI tables directly</a>, but I put it off while trying to
+find a better way. It seems there is none. As I will never remember this stuf next time
+my kernel is upgraded, and because the procedure is slightly different, let's put it all in a memo.</p>
+<h2>Dump the raw ACPI tables</h2>
+<p>On Archlinux, the package 'acpica' must be installed to get the ACPI tools.</p>
+<pre><code>mkdir dsdt &amp;&amp; cd dsdt
+acpidump -b
+mkdir raw &amp;&amp; mv *.dat raw
+mkdir dsl &amp;&amp; mv *.dsl dsl
+</code></pre>
+<p>Find the GPU reference in the ACPI tables:</p>
+<pre><code>grep -rn GPU dsl
+...
+dsl/ssdt11.dsl:412: TGPU = \_SB.PCI0.LPCB.EC.HKEY.GPTL /* External reference */
+dsl/ssdt11.dsl:413: Local0 [0x08] = TGPU /* \_SB_.PCI0.RP09.PEGP.TGPU */
+</code></pre>
+<p><code>\_SB_.PCI0.RP09.PEGP</code> is the reference we seek.
+Next search where <code>_ON_: Power On</code> is used in conjunction with the GPU reference.</p>
+<h2>Edit the table and give it a higher version</h2>
+<p>I found it in <code>ssdt12.dsl</code>, where I apply the following diff:</p>
+<pre><code>diff --git a/dsl/ssdt12.dsl b/dsl/ssdt12.dsl
+index 0902ac1..66b9bfe 100644
+--- a/dsl/ssdt12.dsl
++++ b/dsl/ssdt12.dsl
+@@ -18,7 +18,7 @@
+  *     Compiler ID      &quot;INTL&quot;
+  *     Compiler Version 0x20160527 (538314023)
+  */
+-DefinitionBlock (&quot;&quot;, &quot;SSDT&quot;, 2, &quot;LENOVO&quot;, &quot;SgRpSsdt&quot;, 0x00001000)
++DefinitionBlock (&quot;&quot;, &quot;SSDT&quot;, 2, &quot;LENOVO&quot;, &quot;SgRpSsdt&quot;, 0x00001001)
+ {
+     External (_SB_.GGIV, MethodObj)    // 1 Arguments
+     External (_SB_.GGOV, MethodObj)    // 1 Arguments
+@@ -343,7 +343,17 @@ DefinitionBlock (&quot;&quot;, &quot;SSDT&quot;, 2, &quot;LENOVO&quot;, &quot;SgRpSsdt&quot;, 0x00001000)
+                             PCMR = 0x07
+                             PWRS = Zero
+                             Sleep (0x10)
+-                            \_SB.PCI0.HGON ()
++
++                            // Set this ACPI OSI flag to enable the dGPU.
++                            If (\_OSI (&quot;T490-Hybrid-Graphics&quot;))
++                            {
++                                \_SB.PCI0.HGON ()
++                            }
++                            Else
++                            {
++                                \_SB.PCI0.HGOF ()
++                            }
++
+                             _STA = One
+                         }
+
+@@ -455,7 +465,15 @@ DefinitionBlock (&quot;&quot;, &quot;SSDT&quot;, 2, &quot;LENOVO&quot;, &quot;SgRpSsdt&quot;, 0x00001000)
+
+                     Method (_ON, 0, Serialized)  // _ON_: Power On
+                     {
+-                        \_SB.PCI0.HGON ()
++                        // Set this ACPI OSI flag to enable the dGPU.
++                        If (\_OSI (&quot;T490-Hybrid-Graphics&quot;))
++                        {
++                            \_SB.PCI0.HGON ()
++                        }
++                        Else
++                        {
++                            \_SB.PCI0.HGOF ()
++                        }
+                         Return (Zero)
+                     }
+</code></pre>
+<p>Compile the new table:</p>
+<pre><code>iasl -tc dsl/ssdt12.dsl
+</code></pre>
+<h2>Package and override during boot</h2>
+<pre><code>mkdir -p img/kernel/firmware/acpi &amp;&amp; cd img
+cp ../dsl/ssdt12.aml kernel/firmware/acpi/
+find kernel | cpio -H newc --create &gt; acpi_override
+cp acpi_override /boot
+</code></pre>
+<p>Then read <code>acpi_override</code> during boot in grub using initrd.
+I put it where Intel / AMD microcode is being loaded.</p>
+<pre><code>dmesg | grep -i &quot;ssdt&quot;
+[    0.018697] ACPI: SSDT ACPI table found in initrd [kernel/firmware/acpi/ssdt12.aml][0xe3c]
+...
+[    0.018886] ACPI: Table Upgrade: override [SSDT-LENOVO-SgRpSsdt]
+</code></pre>
+</main>
+
+</body>
+</html>
