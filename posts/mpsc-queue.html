@@ -28,19 +28,24 @@
 <blockquote>
 <p>Code available on <a href="https://github.com/grivet/mpsc-queue">github</a>.</p>
 </blockquote>
-<p>Sharing mutable data disables concurrency.</p>
-<p>A simple way to never share mutable data is to keep it isolated and a simple rule
-to enforce isolation is to only allow a single reference to it.</p>
-<p>If references are unique, the concurrent system must propose a way to safely communicate
-ownership changes. This building block would be a critical primitive in the system.</p>
-<p>I found the <a href="http://www.1024cores.net/home/lock-free-algorithms/queues/intrusive-mpsc-node-based-queue">queue described by Dmitri Vyukov</a> simple and useful.
-It offers interesting properties but has important caveats.</p>
+<p>Sharing mutable data kills concurrency.</p>
+<p>Following this simple precept, it is possible to tame the complexity of
+maintaining concurrency in a system by deriving some rules:</p>
+<ul>
+<li>Mutable data that is not shared is <em>isolated</em>.</li>
+<li>The simplest way to isolate data is to only allow a single reference to it.</li>
+<li>If isolated data still needs to be used by multiple actors, it must be safe
+to update ownership of the unique reference.</li>
+</ul>
+<p>The building block to signal ownership changes would be a critical primitive in the system.
+For cooperative threads, a message queue can be used, which is easy to implement.</p>
+<p>I found the <a href="http://www.1024cores.net/home/lock-free-algorithms/queues/intrusive-mpsc-node-based-queue">queue described by Dmitri Vyukov</a> simple and practical.
+It offers interesting properties but has important caveats that should be highlighted.</p>
 <h2>Taxonomy</h2>
-<p>This message queue is <strong>intrusive</strong> which is great for high-performance systems. It follows
+<p>This message queue is <strong>intrusive</strong> which is great for performance systems. It follows
 that the queue is <strong>unbounded</strong>, as any item could hold a new node to enqueue.</p>
-<p>Ordering is <strong>per-producer FIFO</strong>, thus keeping the order in which elements are inserted from each
-producer point of view. Of course, among producers no ordering is guaranteed, unless additional
-synchronization is used.</p>
+<p>Ordering is <strong>per-producer FIFO</strong>, i.e. it keeps the order of insertions from each producer point of view.
+However, between producers no ordering is guaranteed, unless additional synchronization is used.</p>
 <p>Insertion is done in a finite and constant number of steps by any number of producers.
 State synchronization is done at a single point using an atomic exchange. This is lighter than
 compare-exchange based queues as there is no loop to resolve concurrent writes.</p>
@@ -48,6 +53,8 @@ compare-exchange based queues as there is no loop to resolve concurrent writes.<
 Peeking at the tail of the queue is done in a finite and constant number of steps, like insertion.
 Removal however requires producers to complete their writes (more on why below), making the consumer
 dependent on other threads forward-progress.</p>
+<p>As insertion and removal are both <strong>exchange</strong> based, instead of <strong>compare-exchange</strong> based, they are
+immune from the <em>ABA</em> problem. There is no need to prevent it, further simplifying operations.</p>
 <p>Insertion and peeking are finite and constant, but removal, while resolved in constant time as well (either
 for success or failure) is dependent on other threads progressing. This makes the queue <strong>obstruction-free</strong>
 only, the weakest forward-progress guarantee.</p>

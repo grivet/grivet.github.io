@@ -25,10 +25,8 @@
         <h1>shell: errno memo</h1>
         <time datetime="2021-04-07">2021-04-07</time>
     </div>
-<p>Your <code>open</code> call just set <code>errno</code> to <code>26</code>, you're in GDB and don't want to
-write another /tmp/test.new2.c to discover what just happened. Another day ruined.</p>
 <p>The year is <code>$current_year</code> and I don't care to learn errno values.<br />
-Enough grepping around. Let's build a better tomorrow.</p>
+Enough grepping around. Instead here is a quick way to list them.</p>
 <pre><code># $1: (nil) or errno value
 # output: full errno list or errno value name
 errno () {(
