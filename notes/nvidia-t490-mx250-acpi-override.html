@@ -30,8 +30,8 @@ Unfortunately, it is impossible to disable by 'conventional' means: Lenovo did
 not bother to add a BIOS switch, and the usual <code>bbswitch</code> / Optimus / VGA switcheroo are unable
 to send the proper command to the device.</p>
 <p>Someone described how to <a href="https://major.io/2020/01/24/disable-nvidia-gpu-thinkpad-t490/">override the ACPI tables directly</a>, but I put it off while trying to
-find a better way. It seems there is none. As I will never remember this stuf next time
-my kernel is upgraded, and because the procedure is slightly different, let's put it all in a memo.</p>
+find a better way. It seems there is none. As I will never remember this stuff next time
+I need it, and because the procedure is slightly different, let's put it all in a memo.</p>
 <h2>Dump the raw ACPI tables</h2>
 <p>On Archlinux, the package 'acpica' must be installed to get the ACPI tools.</p>
 <pre><code>mkdir dsdt &amp;&amp; cd dsdt
