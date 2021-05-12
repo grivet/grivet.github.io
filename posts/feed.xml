@@ -5,18 +5,10 @@
     <link>https://u256.net</link>
     <description>Recent content on U256</description>
     <generator>shweb</generator>
-    <lastBuildDate>2021-04-28 22:29:25 UTC</lastBuildDate>
+    <lastBuildDate>2021-05-12 22:46:07 UTC</lastBuildDate>
 
     <atom:link href="https://u256.net/posts/feed.xml" rel="self" type="application/rss+xml" />
 
-    <item>
-        <title>shell: errno memo</title>
-        <link>https://u256.net/posts/errno-memo.html</link>
-        <pubDate>2021-04-07 00:00:00 UTC</pubDate>
-
-        <guid>https://u256.net/posts/errno-memo.html</guid>
-        <description>Less grep, more sleep</description>
-    </item>
     <item>
         <title>A fast lock-less MPSC queue</title>
         <link>https://u256.net/posts/mpsc-queue.html</link>

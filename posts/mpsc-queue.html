@@ -39,7 +39,7 @@ must be safely signaled.</li>
 <li>Holding the single reference to the data is a good token for ownership,
 and it can be passed among actors as a message.</li>
 </ul>
-<p>In a concurrent system, these message queues would be a critical primitive.</p>
+<p>In such a concurrent system, the message queue would be a critical primitive.</p>
 <p>I found the <a href="http://www.1024cores.net/home/lock-free-algorithms/queues/intrusive-mpsc-node-based-queue">queue described by Dmitri Vyukov</a> simple and practical if cooperative
 threads are used. It is an MPSC queue, which limits the constraints and the need
 for synchronization. This in turn allows keeping it light and performant.</p>
@@ -72,48 +72,49 @@ back of the queue. First the current end is swapped with the new node atomically
 The previous end is then updated to point to the new node. To follow Vyukov's
 nomenclature, the end-node of the chain is the head. A producer will
 only manipulate the head.</p>
-<pre><code>Before:
+<pre><code>
+Before:
 
       ,-----.   ,-----.   ,-----.
 - - -&gt;|  A  +--&gt;|  B  +--&gt;|  C  +--&gt; //
       `-----'   `-----'   `-----'
-                             |
+                             ^
   head +---------------------'
 
 
-Insertion part A: the head pointer is swapped
+Insertion part A: the head pointer is swapped by thread 1
 
       ,-----.   ,-----.   ,-----.       ,-----.
 - - -&gt;|  A  +--&gt;|  B  +--&gt;|  C  +--&gt; // |  D  +--&gt; //
       `-----'   `-----'   `-----'       `1----'
-                                           |
+                                           ^
   head +-----------------------------------'
 
 
-Insertion part B: the previous node is linked to the new one
+Insertion part B: thread 1 links the previous node to the new one
 
       ,-----.   ,-----.   ,-----.   ,-----.
 - - -&gt;|  A  +--&gt;|  B  +--&gt;|  C  +--&gt;|  D  +--&gt; //
       `-----'   `-----'   `1----'   `-----'
-                                       |
+                                       ^
   head +-------------------------------'
-
 
 </code></pre>
 <p>The head swap is atomic, however the link from the previous head to the new
 one is done in a separate operation. This means that the chain is momentarily
 broken when the previous head still points to <code>NULL</code> and the current head has
 been inserted.</p>
-<pre><code>Multiple threads inserting concurrently:
+<pre><code>
+Multiple threads inserting concurrently:
 
       ,-----.   ,-----.   ,-----.       ,-----.   ,-----.       ,-----.   ,-----.
 - - -&gt;|  A  +--&gt;|  B  +--&gt;|  C  +--&gt; // |  D  +--&gt;|  E  +--&gt; // |  F  +--&gt;|  G  +--&gt; //
       `-----'   `-----'   `-----'       `1----'   `2----'       `3----'   `4----'
-                                                                             |
+                                                                             ^
   head +---------------------------------------------------------------------'
 
 
-The consumer can only read until 'C', waiting on '1' to finish the insertion.
+The consumer can only read until 'C', waiting on thread 1 to finish the insertion.
 Threads 2 and 4 have finished inserting. Threads 1 and 3 are between part A and B.
 
 </code></pre>
@@ -124,12 +125,13 @@ transactions, it is not linearizable.</p>
 <h3>Removal</h3>
 <p>The consumer must deal with the queue inconsistency. It will manipulate
 the tail of the queue and move it along the latest consumed elements.</p>
-<pre><code>Consumer reads from the tail:
+<pre><code>
+Consumer reads from the tail:
 
         ,------.   ,-----.   ,-----.   ,-----.
         | stub +--&gt;|  A  +--&gt;|  B  +--&gt;|  C  +--&gt; //
         `------'   `-----'   `-----'   `-----'
-           |                              |
+           ^                              ^
   tail +---'                              |
   head +----------------------------------'
 
@@ -139,15 +141,16 @@ it is skipped and 'A' is returned, then 'B', then 'C'.
 </code></pre>
 <p>When an end of the chain of elements is found (the next pointer is <code>NULL</code>),
 the tail is compared with the head.</p>
-<p>If both points to different addresses, then the queue is in an inconsistent
+<p>If they point to different addresses, then the queue is in an inconsistent
 state: the tail cannot move forward as the next is <code>NULL</code>, but the head is not
 the last element in the chain: this can only happen if the chain is broken.</p>
-<pre><code>Reading in inconsistent state:
+<pre><code>
+Reading in inconsistent state:
 
         ,------.   ,-----.   ,-----.   ,-----.       ,-----.
         | stub +--&gt;|  A  +--&gt;|  B  +--&gt;|  C  +--&gt; // |  D  +--&gt; //
         `------'   `-----'   `-----'   `-----'       `-----'
-                                          |             |
+                                          ^             ^
   tail +----------------------------------'             |
   head +------------------------------------------------'
 
@@ -157,23 +160,31 @@ the queue is known to be inconsistent.
 </code></pre>
 <p>In this case, the consumer must wait for the producer to finish writing the
 next pointer of its current tail.</p>
-<p>Removal is thus in most cases (when there are elements in the queue)
+<p>Removal is in most cases (when there are elements in the queue)
 accomplished without using atomics, until the last element of the queue.
 There, the head is atomically loaded. If the queue is in a consistent state,
 the head is moved back to the queue stub by inserting the stub in the queue:
 ending the queue is the same as an insertion, which is one atomic exchange.</p>
-<pre><code>Emptying the queue in a consistent state:
+<pre><code>
+Emptying the queue in a consistent state:
 
 The consumer read 'D' already and tries to get the next node.
 
         ,------.   ,-----.   ,-----.   ,-----.   ,-----.
         | stub +--&gt;|  A  +--&gt;|  B  +--&gt;|  C  +--&gt;|  D  +--&gt; //
         `------'   `-----'   `-----'   `-----'   `-----'
-                                                    |
-  tail +--------------------------------------------'
-  head +--------------------------------------------'
+                                                    ^^
+  tail +--------------------------------------------'|
+  head +---------------------------------------------'
 
 As head and tail are equal, the queue stub is inserted:
+
+        ,------.       ,-----.   ,-----.   ,-----.   ,-----.   ,------.
+        | stub +--&gt; // |  A  +--&gt;|  B  +--&gt;|  C  +--&gt;|  D  +--&gt;| stub +--&gt; //
+        `------'       `-----'   `-----'   `-----'   `-----'   `------'
+                                                        ^         ^
+  tail +------------------------------------------------'         |
+  head +----------------------------------------------------------'
 
         ,------.
         | stub +--&gt; //

@@ -1,0 +1,51 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,"/>
+    <title>U256 | Send commands to another TTY</title>
+    <link rel="stylesheet" href="../style.css"/>
+
+    
+</head>
+<body>
+    <header>
+        <div>
+            <a href="../">Home</a>
+        </div>
+<div id='navbar'>
+<span><a href="./">notes</a></span>
+<span><a href="../posts">posts</a></span>
+</div>
+    </header>
+
+<main>
+    <div class="title">
+        <h1>Send commands to another TTY</h1>
+        <time datetime="2021-05-06">2021-05-06</time>
+    </div>
+<pre><code class="language-bash">cat &lt;&lt;END_OF_TTYEXEC &gt; ttyexec.py
+#!/usr/bin/python
+
+import sys,os,fcntl,termios
+if len(sys.argv) != 3:
+   sys.stderr.write(&quot;usage: ttyexec.py tty command\n&quot;)
+   sys.exit(1)
+fd = os.open(&quot;/dev/&quot; + sys.argv[1], os.O_RDWR)
+cmd=sys.argv[2]
+for i in range(len(cmd)):
+   fcntl.ioctl(fd, termios.TIOCSTI, cmd[i])
+fcntl.ioctl(fd, termios.TIOCSTI, '\n')
+os.close(fd)
+END_OF_TTYEXEC
+
+chmod +x ttyexec.py
+</code></pre>
+<p>It can be used to <code>exit</code> a shell for example, or an interactive <code>testpmd</code> session.</p>
+<pre><code>./ttyexec.py pts/0 quit
+</code></pre>
+</main>
+
+</body>
+</html>
