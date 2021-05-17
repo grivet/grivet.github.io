@@ -45,14 +45,17 @@ threads are used. It is an MPSC queue, which limits the constraints and the need
 for synchronization. This in turn allows keeping it light and performant.</p>
 <p>It offers interesting properties but has important caveats that should be highlighted.</p>
 <h2>Taxonomy</h2>
-<p>This message queue is intrusive which is great for performance systems. It follows
-that the queue is unbounded, as any item could hold a new node to enqueue.</p>
-<p>Ordering is per-producer FIFO, i.e. it keeps the order of insertions from each producer point of view.
+<p>This message queue is an intrusive linked-list, meaning that a queue node is part of the element
+being inserted in the list. As a result the element itself is modified by queue operations.
+This is a good fit for low latency systems, as it avoids one additional dereference and reduces
+heap fragmentation. While generally linked-lists are terrible for cache locality, they are sometimes
+unavoidable. In that case, an intrusive list is better.</p>
+<p>Queue ordering is per-producer FIFO, i.e. it keeps the order of insertions from each producer point of view.
 However, between producers no ordering is guaranteed, unless additional synchronization is used.</p>
 <p>Insertion is done in a finite and constant number of steps by any number of producers.
 State synchronization is done at a single point using an atomic exchange. This is lighter than
 compare-exchange based queues as there is no loop to resolve concurrent writes.</p>
-<p>Reading the queue state and removing elements is only allowed to a single consumer at a time.
+<p>Reading the queue state and removing elements is limited to a single consumer at a time.
 Peeking at the tail of the queue is done in a finite and constant number of steps, like insertion.
 Removal however requires producers to complete their writes (more on why below), making the consumer
 dependent on other threads forward-progress.</p>
@@ -64,7 +67,7 @@ only, the weakest forward-progress guarantee.</p>
 <p>Such structure relies on cooperative peers to avoid livelock. This might not be an issue for some
 concurrent systems, but it is important to keep in mind.</p>
 <p>This queue can be useful for low-latency systems, such as <em>thread-per-core</em> applications.
-It could be used to implement the <a href="https://en.wikipedia.org/wiki/Actor_model">Actor model</a> as well.</p>
+It could also be used to implement the <a href="https://en.wikipedia.org/wiki/Actor_model">Actor model</a> for example.</p>
 <h2>Operations</h2>
 <h3>Insertion</h3>
 <p>The queue is implemented using a singly-linked list. Insertion is done at the
@@ -73,16 +76,17 @@ The previous end is then updated to point to the new node. To follow Vyukov's
 nomenclature, the end-node of the chain is the head. A producer will
 only manipulate the head.</p>
 <pre><code>
-Before:
+Before: the queue is in a consistent state and its end currently points to a node 'C'.
+Thread 1 is going to insert a node 'D'.
 
-      ,-----.   ,-----.   ,-----.
-- - -&gt;|  A  +--&gt;|  B  +--&gt;|  C  +--&gt; //
-      `-----'   `-----'   `-----'
+      ,-----.   ,-----.   ,-----.                   ,-----.
+- - -&gt;|  A  +--&gt;|  B  +--&gt;|  C  +--&gt; //             |  D  +--&gt; //
+      `-----'   `-----'   `-----'                   `1----'
                              ^
   head +---------------------'
 
 
-Insertion part A: the head pointer is swapped by thread 1
+Insertion part A: the head pointer is swapped by thread 1, pointing to 'D'.
 
       ,-----.   ,-----.   ,-----.       ,-----.
 - - -&gt;|  A  +--&gt;|  B  +--&gt;|  C  +--&gt; // |  D  +--&gt; //
@@ -91,7 +95,7 @@ Insertion part A: the head pointer is swapped by thread 1
   head +-----------------------------------'
 
 
-Insertion part B: thread 1 links the previous node to the new one
+Insertion part B: thread 1 links 'C' to 'D'.
 
       ,-----.   ,-----.   ,-----.   ,-----.
 - - -&gt;|  A  +--&gt;|  B  +--&gt;|  C  +--&gt;|  D  +--&gt; //
@@ -101,9 +105,14 @@ Insertion part B: thread 1 links the previous node to the new one
 
 </code></pre>
 <p>The head swap is atomic, however the link from the previous head to the new
-one is done in a separate operation. This means that the chain is momentarily
-broken when the previous head still points to <code>NULL</code> and the current head has
-been inserted.</p>
+one is done in a separate operation. Any number of threads can execute the first
+part of insertion concurrently. The head can be moved around several
+times in any execution order, and it will remain correct in the sense that it
+will still point to the last enqueued element.</p>
+<p>Closing the chain however is done in a second, separate operation.
+Until the chain is closed, it remains in an inconsistent state.
+In that state, the previous seen head (C in this example) still points to <code>NULL</code>,
+but the next published head is D.</p>
 <pre><code>
 Multiple threads inserting concurrently:
 
@@ -163,7 +172,7 @@ next pointer of its current tail.</p>
 <p>Removal is in most cases (when there are elements in the queue)
 accomplished without using atomics, until the last element of the queue.
 There, the head is atomically loaded. If the queue is in a consistent state,
-the head is moved back to the queue stub by inserting the stub in the queue:
+the head is moved back to the queue stub by inserting the latter in the queue:
 ending the queue is the same as an insertion, which is one atomic exchange.</p>
 <pre><code>
 Emptying the queue in a consistent state:
@@ -177,7 +186,7 @@ The consumer read 'D' already and tries to get the next node.
   tail +--------------------------------------------'|
   head +---------------------------------------------'
 
-As head and tail are equal, the queue stub is inserted:
+As head and tail are equal, insert the queue stub:
 
         ,------.       ,-----.   ,-----.   ,-----.   ,-----.   ,------.
         | stub +--&gt; // |  A  +--&gt;|  B  +--&gt;|  C  +--&gt;|  D  +--&gt;| stub +--&gt; //
@@ -193,7 +202,7 @@ As head and tail are equal, the queue stub is inserted:
   tail +---'
   head +---'
 
-Next 'read', the stub is skipped and NULL is returned: the queue is empty.
+Next 'read', skip the stub and return NULL: the queue is empty.
 
 </code></pre>
 <h3>Safety</h3>
