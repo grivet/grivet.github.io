@@ -33,7 +33,7 @@ to be available. One issue is that the latency until completion falls squarely w
     port=${2:-22}
     until ping -W1 -c1 &quot;$1&quot;; do :; done
     echo &quot;Ping ok.&quot;
-    until nc -w 1 -z &quot;$1&quot; &quot;${port}&quot; do :; done
+    until nc -w 1 -z &quot;$1&quot; &quot;${port}&quot;; do :; done
     echo &quot;Port ${port} is open.&quot;
 }
 </code></pre>
