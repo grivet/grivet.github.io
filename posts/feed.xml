@@ -5,7 +5,7 @@
     <link>https://u256.net</link>
     <description>Recent content on U256</description>
     <generator>shweb</generator>
-    <lastBuildDate>2021-09-02 11:03:55 UTC</lastBuildDate>
+    <lastBuildDate>2022-11-28 17:05:54 UTC</lastBuildDate>
 
     <atom:link href="https://u256.net/posts/feed.xml" rel="self" type="application/rss+xml" />
 
@@ -16,14 +16,6 @@
 
         <guid>https://u256.net/posts/mpsc-queue.html</guid>
         <description>An implementation of a fast message queue</description>
-    </item>
-    <item>
-        <title>shell: cleaner cancellable until</title>
-        <link>https://u256.net/posts/waitfor.html</link>
-        <pubDate>2020-08-18 00:00:00 UTC</pubDate>
-
-        <guid>https://u256.net/posts/waitfor.html</guid>
-        <description>limits of POSIX shell when expecting failure</description>
     </item>
 
   </channel>
