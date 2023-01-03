@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" href="data:,"/>
-    <title>U256 | A fast lock-less MPSC queue</title>
+    <title>U256 | A fast lockless MPSC queue</title>
     <link rel="stylesheet" href="../style.css"/>
 
     
@@ -23,52 +23,62 @@
 
 <main>
     <div class="title">
-        <h1>A fast lock-less MPSC queue</h1>
+        <h1>A fast lockless MPSC queue</h1>
         <time datetime="2021-02-21">2021-02-21</time>
     </div>
 <blockquote>
 <p>Code available on <a href="https://github.com/grivet/mpsc-queue">github</a>.</p>
 </blockquote>
-<p>Sharing mutable data kills concurrency.</p>
-<p>Expanding on this basic idea, rules can be derived to build a concurrent
-system, hopefully keeping things simple:</p>
-<ul>
-<li>Mutable data that is not shared is <em>isolated</em>.</li>
-<li>A simple way to isolate data is to only allow a single reference to it.</li>
-<li>If mutable data needs to be used by more than one actors, data ownership changes
-must be safely signaled.</li>
-<li>Holding the single reference to the data is a good token for ownership,
-and it can be passed among actors as a message.</li>
-</ul>
-<p>In such a concurrent system, the message queue would be a critical primitive.</p>
+<p>Sharing mutable data kills concurrency, but using multicore systems
+efficiently often requires dividing work between active threads.</p>
+<p>By carefully planning data accesses, it is possible to reduce their
+synchronization overhead. If mutable data is isolated, there is no need
+to take a lock before modifying it as we are assured to be the only one
+currently accessing it.</p>
+<p>To isolate data, different approaches are possible. <a href="https://harelang.org/">Some</a> languages choose
+to only allow a single execution thread and rely on process isolation provided
+by the operating system. <a href="https://www.rust-lang.org/">Others</a> will support telling the compiler when data has <em>moved</em>
+between accessors to enforce either unique access or explicit synchronization.</p>
+<p>As usual with C, we are left to fend for ourselves. One classical solution to this
+problem is message passing, which can be used to crudely express the <em>move</em> semantic
+of passing a bit of isolated data from one thread to the next.
+Unfortunately enforcing unique access is then usually done by humans
+with the help of a few comments.</p>
+<p>To implement message passing, a message queue is used and becomes a critical primitive.</p>
 <p>I found the <a href="http://www.1024cores.net/home/lock-free-algorithms/queues/intrusive-mpsc-node-based-queue">queue described by Dmitri Vyukov</a> simple and practical if cooperative
-threads are used. It is an MPSC queue, which limits the constraints and the need
-for synchronization. This in turn allows keeping it light and performant.</p>
-<p>It offers interesting properties but has important caveats that should be highlighted.</p>
-<h2>Taxonomy</h2>
+threads are used. It is an MPSC queue, which limits the need for synchronization.
+This in turn allows keeping it light and performant.</p>
+<p>It offers interesting properties but its apparent simplicity trades for subtle caveats,
+that I thought should be explored a bit.</p>
+<h2>Properties</h2>
+<h3>Lockless MPSC</h3>
+<p>This is a lockless multi-producer, single-consumer (MPSC) queue. Message passing is done
+many-to-one, with any number of sender to a single recipient. Note that lockless does not mean
+lock-free. While no lock is ever used within the queue operation, there is a potential for livelocking
+threads if used improperly.</p>
+<h3>Intrusive &amp; unbounded</h3>
 <p>This message queue is an intrusive linked-list, meaning that a queue node is part of the element
-being inserted in the list. As a result the element itself is modified by queue operations.
-This is a good fit for low latency systems, as it avoids one additional dereference and reduces
-heap fragmentation. While generally linked-lists are terrible for cache locality, they are sometimes
-unavoidable. In that case, an intrusive list is better.</p>
+being inserted in the list. Consequently, a part of that element is necessarily modified by any
+queue operation.</p>
+<p>Another result from its intrusiveness is that the queue itself does not bound the number of enqueued elements.
+Instead, backpressure is handled when generating the inserted elements (during allocation typically).</p>
+<h3>Per-producer FIFO</h3>
 <p>Queue ordering is per-producer FIFO, i.e. it keeps the order of insertions from each producer point of view.
 However, between producers no ordering is guaranteed, unless additional synchronization is used.</p>
-<p>Insertion is done in a finite and constant number of steps by any number of producers.
-State synchronization is done at a single point using an atomic exchange. This is lighter than
-compare-exchange based queues as there is no loop to resolve concurrent writes.</p>
-<p>Reading the queue state and removing elements is limited to a single consumer at a time.
-Peeking at the tail of the queue is done in a finite and constant number of steps, like insertion.
-Removal however requires producers to complete their writes (more on why below), making the consumer
-dependent on other threads forward-progress.</p>
-<p>As insertion and removal are both <strong>exchange</strong> based, instead of <strong>compare-exchange</strong> based, they are
-immune from the <em>ABA</em> problem. There is no need to prevent it, further simplifying operations.</p>
-<p>Insertion and peeking are finite and constant, but removal, while resolved in constant time as well (either
-for success or failure) is dependent on other threads progressing. This makes the queue obstruction-free
-only, the weakest forward-progress guarantee.</p>
-<p>Such structure relies on cooperative peers to avoid livelock. This might not be an issue for some
-concurrent systems, but it is important to keep in mind.</p>
-<p>This queue can be useful for low-latency systems, such as <em>thread-per-core</em> applications.
-It could also be used to implement the <a href="https://en.wikipedia.org/wiki/Actor_model">Actor model</a> for example.</p>
+<h3>Obstruction-free</h3>
+<p>Thread synchronization is done at a single point using an atomic <strong>exchange</strong>.
+It reduces the insertion overhead greatly compared to <strong>compare-exchange</strong> based queues as it
+does not require a synchronization loop to enforce correctness of writes. It elegantly sidestep
+the <em>ABA</em> problem such loop creates and obviates the need to handle it.</p>
+<p>Without the <code>CMPXCHG</code> loop, insertion and peeking is done in a finite and constant number of steps.
+Removal however requires producers to complete their writes (which is explained later), making the consumer
+dependent on other threads forward-progress. As such the structure is obstruction-free only.</p>
+<p>Another formulation of that property is that this structure relies on cooperative threads to avoid livelock.
+Producer threads must not be cancelled while inserting nodes in the queue, as it might block a consumer from
+progressing.</p>
+<p>As an intrusive, lean linked-list based queue, this structure can be useful for low-latency systems,
+such as <em>thread-per-core</em> applications. It could also be used to implement the
+<a href="https://en.wikipedia.org/wiki/Actor_model">Actor model</a>.</p>
 <h2>Operations</h2>
 <h3>Insertion</h3>
 <p>The queue is implemented using a singly-linked list. Insertion is done at the
@@ -134,7 +144,7 @@ is serializable. However, because an insertion consists in two separate memory
 transactions, it is not linearizable.</p>
 <h3>Removal</h3>
 <p>The consumer must deal with the queue inconsistency. It will manipulate
-the tail of the queue and move it along the latest consumed elements.</p>
+the tail of the queue and move it along the last consumed elements.</p>
 <pre><code>
 Consumer reads from the tail:
 
@@ -199,41 +209,50 @@ As head and tail are equal, insert the queue stub:
         ,------.
         | stub +--&gt; //
         `------'
-           |
-  tail +---'
-  head +---'
+           ^^
+  tail +---'|
+  head +----'
 
 Next 'read', skip the stub and return NULL: the queue is empty.
 
 </code></pre>
+<h2>Usage</h2>
+<h3>Semantic</h3>
+<p>The queue can be in transient inconsistent states. The reader needs to <code>peek</code>
+into the queue and check for inconsistencies before removing an element. Getting
+into a consistent state is dependent upon producers completing their two-part writes.</p>
+<p>A full <code>pop</code> operation means looping <code>peek</code> on the queue until it is either known empty or an
+element is returned. The original queue as described by Vyukov does not distinguish between
+an empty queue and an inconsistent queue, in both cases <code>NULL</code> is returned. This is
+insufficient to efficiently implement <code>pop</code>, as different behavior is expected depending
+on the queue state.</p>
+<p>If the queue is empty, we can stop polling altogether. If it is inconsistent, we can
+expect it resolved shorty and we should retry for a time. If neither, an element should
+be available and polling stopped.</p>
+<p>Thus I named the core removal function <code>mpsc_queue_poll</code>, which returns three possible values:</p>
+<ul>
+<li><code>MPSC_QUEUE_EMPTY</code>, meaning that the queue has no elements.</li>
+<li><code>MPSC_QUEUE_ITEM</code>, in which case the given pointer is set to the removed element.</li>
+<li><code>MPSC_QUEUE_RETRY</code>, signaling that a producer has not yet finished writing and polling should
+be attempted again soon.</li>
+</ul>
+<p>Properly determining the state of the queue requires an additional operation over the
+ones described in Vyukov implementation: when the <code>tail</code> is on the <code>stub</code> and there is
+no <code>next</code> available, then we need to read and check against the <code>head</code> to decide whether
+the queue is empty or inconsistent.</p>
+<p>This is a small overhead, that allows properly implementing the <code>pop</code> polling loop.</p>
 <h3>Safety</h3>
-<p>Because the queue can be in transient inconsistent states, the reader needs
-to peek before removing an element. Finding a consistent state is dependent on
-producers completing their writes.</p>
 <p>If a producer was suspended after exchanging the head, but before linking to the new one,
 the consumer is blocked from reading until the producer resumes. If the producer is cancelled,
 then the consumer will never be able to access the remaining entries.</p>
 <p>If the producers are very rarely or never suspended, then inconsistent states should
 be short and rare. Producers should never insert while being cancellable.</p>
-<h2>Usage</h2>
-<p>The queue is lockless. To benefit from this property, ideally neither producers nor
-consumer should have to take a lock to use it. Unfortunately, this means that there is
-no proper way to signal when new elements are available in the queue: the consumer
-thread is forced to poll it for new items.</p>
-<p>Such polling can be implemented using <strong>exponential backoff</strong> if no other work is expected.
-It should reduce useless activity of the consumer thread, at the price of some latency
-for the first new element if activity picks up.</p>
-<p>This is the reason I named the removal function <code>mpsc_queue_poll</code>. It does not guarantee
-to return an element, but will signal when it does.</p>
-<p>Also, to properly implement exponential backoff, the consumer thread must differentiate between
-seeing the queue empty or in an inconsistent state. Instead of a binary <code>NULL</code>/<code>addr</code> returned for
-an item, I defined three polling results:</p>
-<ul>
-<li><code>MPSC_QUEUE_EMPTY</code>, which means that the queue has no elements and backoff could start.</li>
-<li><code>MPSC_QUEUE_ITEM</code>, in which case the given pointer is set to the removed element.</li>
-<li><code>MPSC_QUEUE_RETRY</code>, signaling that a producer has not yet finished writing and polling should
-be attempted again soon. No need to start backoff.</li>
-</ul>
+<p>The <code>pop</code> loop should be bounded if we cannot guarantee that the producers will never
+be cancelled, and as such are assured to be scheduled again to complete their writes.</p>
+<p>Otherwise, a limited number of peek should be attempted, before a warning being issued to avoid
+completely blocking the reader. At this point however, any number of messages could be lost in the
+queue. If that is a possibility, system recovery would require those elements be made otherwise
+reachable by an out-of-band iterator, and a recovery routine implemented stopping the world etc...</p>
 <h2>Performance</h2>
 <p>The repository linked with this post contains a small benchmark comparing
 Vyukov queue to other MPSC queues. This post being too long already, I will
