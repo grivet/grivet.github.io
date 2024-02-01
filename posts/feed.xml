@@ -5,14 +5,14 @@
     <link>https://u256.net</link>
     <description>Recent content on U256</description>
     <generator>shweb</generator>
-    <lastBuildDate>2023-01-03 09:47:49 UTC</lastBuildDate>
+    <lastBuildDate>2024-02-01 09:30:42 UTC</lastBuildDate>
 
     <atom:link href="https://u256.net/posts/feed.xml" rel="self" type="application/rss+xml" />
 
     <item>
         <title>A fast lockless MPSC queue</title>
         <link>https://u256.net/posts/mpsc-queue.html</link>
-        <pubDate>2021-02-21 00:00:00 UTC</pubDate>
+        <pubDate>Sun Feb 21 10:30:42 CET 2021</pubDate>
 
         <guid>https://u256.net/posts/mpsc-queue.html</guid>
         <description>An implementation of a fast message queue</description>

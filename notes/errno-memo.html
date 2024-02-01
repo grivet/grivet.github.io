@@ -26,20 +26,16 @@
         <h1>shell: errno memo</h1>
         <time datetime="2021-04-07">2021-04-07</time>
     </div>
-<pre><code># $1: (nil) or errno value
-# output: full errno list or errno value name
-errno () {(
-    err=${1}
-
-    [ &quot;$err&quot; ] &amp;&amp; filter=&quot;| grep \&quot;${err}\&quot;&quot;
-    filter=&quot;$filter |column -t&quot;
-    cmdline=&quot;cc -E -dM /usr/include/errno.h \
-            |grep 'define E' \
-            |sort -n -k 3 \
-            |cut -d' ' -f2- \
+<pre><code>errno () (
+    [ &quot;$1&quot; ] &amp;&amp; filter=&quot;grep -i \&quot;$1\&quot; |&quot;
+    filter=&quot;$filter column -t&quot;
+    cmd=&quot;cc -E -dM /usr/include/errno.h |
+            grep 'define E' |
+            sort -n -k 3 |
+            cut -d' ' -f2- |
             $filter&quot;
-    eval $cmdline
-)}
+    eval $cmd
+)
 
 $ errno 26
 ETXTBSY  26
